@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using Microsoft.ML;
 using Microsoft.ML.Data;
+using Microsoft.ML.Trainers;
 using Microsoft.ML.Trainers.FastTree;
 using PriceWise.Infrastructure.ML.Models;
 
@@ -55,7 +56,7 @@ public sealed class LaptopPriceModelTrainer
         stopwatch.Restart();
 
         // String -> Key -> OneHot is fine.
-        var pipeline =
+        EstimatorChain<RegressionPredictionTransformer<LinearRegressionModelParameters>>? pipeline =
             _ml.Transforms.Text.NormalizeText("BrandNorm", nameof(LaptopPriceTrainingRow.Brand))
             .Append(_ml.Transforms.Text.NormalizeText("CpuNorm", nameof(LaptopPriceTrainingRow.Cpu)))
             .Append(_ml.Transforms.Text.NormalizeText("GpuNorm", nameof(LaptopPriceTrainingRow.Gpu)))
