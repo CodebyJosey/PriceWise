@@ -1,6 +1,0 @@
-@PriceWise.Api_HostAddress = http://localhost:5031
-
-GET {{PriceWise.Api_HostAddress}}/weatherforecast/
-Accept: application/json
-
-###
