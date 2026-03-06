@@ -3,6 +3,7 @@ using Microsoft.ML;
 using PriceWise.Infrastructure.ML.Models;
 using PriceWise.Infrastructure.ML.Training;
 using PriceWise.Infrastructure.ML.Prediction;
+using PriceWise.Infrastructure.ML.Definitions;
 
 namespace PriceWise.Api.Controllers;
 
@@ -23,7 +24,7 @@ public sealed class ModelController : ControllerBase
     /// Trains a new ML model and saves it to artifacts/models/laptop-price-model.zip.
     /// Reloads the model in-memory afterwards so prediction uses the latest model without restarting.
     /// </summary>
-    [HttpPost("train")]
+    [HttpPost("train/laptops")]
     [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status500InternalServerError)]
     public IActionResult Train()
@@ -35,7 +36,9 @@ public sealed class ModelController : ControllerBase
 
         try
         {
-            LaptopPriceModelTrainer? trainer = new LaptopPriceModelTrainer();
+            MLContext ml = new MLContext(seed: 1);
+            LaptopPriceModelDefinition? definition = new LaptopPriceModelDefinition();
+            TabularRegressionTrainer<LaptopPriceTrainingRow, LaptopPricePrediction>? trainer = new TabularRegressionTrainer<LaptopPriceTrainingRow, LaptopPricePrediction>(ml, definition);
             RegressionTrainingResult? result = trainer.TrainEvaluateAndSave(dataSetPath, modelPath);
 
             // Ensure the API starts using the freshly trained model immediately.
