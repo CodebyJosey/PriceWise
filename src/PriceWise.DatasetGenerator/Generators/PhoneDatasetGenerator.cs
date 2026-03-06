@@ -1,252 +1,158 @@
-using System.Globalization;
-using System.Text;
-using PriceWise.DatasetGenerator.Models;
-using PriceWise.DatasetGenerator.Pricing;
+using PriceWise.DatasetGenerator.Abstractions;
+using PriceWise.DatasetGenerator.Rows;
 
 namespace PriceWise.DatasetGenerator.Generators;
 
 /// <summary>
-/// Generates synthetic phone datasets for ML training.
+/// Generates phone dataset rows.
 /// </summary>
-public sealed class PhoneDatasetGenerator
+public sealed class PhoneDatasetCategoryGenerator : IDatasetCategoryGenerator
 {
     private static readonly string[] Brands =
+    [
+        "Apple", "Samsung", "Google", "OnePlus", "Xiaomi"
+    ];
+
+    private static readonly Dictionary<string, string[]> ModelFamilies = new(StringComparer.OrdinalIgnoreCase)
     {
-        "Apple",
-        "Samsung",
-        "Google",
-        "OnePlus",
-        "Xiaomi",
-        "Nothing",
-        "Motorola"
+        ["Apple"] = ["iPhone 11", "iPhone 12", "iPhone 13", "iPhone 14", "iPhone 15"],
+        ["Samsung"] = ["Galaxy S21", "Galaxy S22", "Galaxy S23", "Galaxy S24", "Galaxy A54"],
+        ["Google"] = ["Pixel 6", "Pixel 7", "Pixel 8", "Pixel 8a"],
+        ["OnePlus"] = ["OnePlus 10", "OnePlus 11", "OnePlus 12", "Nord 3"],
+        ["Xiaomi"] = ["Mi 11", "12T", "13T", "Redmi Note 12"]
     };
 
     private static readonly string[] Conditions =
-    {
-        "New",
-        "Refurbished",
-        "UsedGood",
-        "UsedFair"
-    };
+    [
+        "Used", "Refurbished", "As New", "New"
+    ];
 
-    /// <summary>
-    /// Generates a collection of phone rows.
-    /// </summary>
-    public IReadOnlyList<PhoneDatasetRow> Generate(int count, int seed = 42)
+    /// <inheritdoc />
+    public string Key => "phones";
+
+    /// <inheritdoc />
+    public string FileName => "phones.csv";
+
+    /// <inheritdoc />
+    public IReadOnlyList<object> GenerateRows(int count, Random random)
     {
-        var random = new Random(seed);
-        var rows = new List<PhoneDatasetRow>(count);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(count);
+        ArgumentNullException.ThrowIfNull(random);
+
+        List<object> rows = new(count);
 
         for (int i = 0; i < count; i++)
         {
-            rows.Add(GenerateOne(random));
+            string brand = Pick(Brands, random);
+            string modelFamily = Pick(ModelFamilies[brand], random);
+            float storageGb = Pick([64f, 128f, 256f, 512f], random);
+            float ramGb = Pick([4f, 6f, 8f, 12f, 16f], random);
+            float batteryHealth = random.Next(75, 101);
+            string condition = Pick(Conditions, random);
+            float releaseYear = GuessReleaseYear(modelFamily);
+
+            float price = CalculatePhonePrice(
+                brand,
+                modelFamily,
+                storageGb,
+                ramGb,
+                batteryHealth,
+                condition,
+                releaseYear,
+                random);
+
+            rows.Add(new PhoneDatasetRow
+            {
+                Brand = brand,
+                ModelFamily = modelFamily,
+                StorageGb = storageGb,
+                RamGb = ramGb,
+                BatteryHealth = batteryHealth,
+                Condition = condition,
+                ReleaseYear = releaseYear,
+                Price = price
+            });
         }
 
         return rows;
     }
 
-    /// <summary>
-    /// Writes the generated dataset to a CSV file.
-    /// </summary>
-    public void WriteCsv(string outputPath, IEnumerable<PhoneDatasetRow> rows)
+    private static float CalculatePhonePrice(
+        string brand,
+        string modelFamily,
+        float storageGb,
+        float ramGb,
+        float batteryHealth,
+        string condition,
+        float releaseYear,
+        Random random)
     {
-        string? directory = Path.GetDirectoryName(outputPath);
+        float price = 120f;
 
-        if (!string.IsNullOrWhiteSpace(directory))
+        price += brand switch
         {
-            Directory.CreateDirectory(directory);
-        }
-
-        var sb = new StringBuilder();
-        sb.AppendLine("Brand,ModelFamily,StorageGb,RamGb,BatteryHealth,Condition,ReleaseYear,Price");
-
-        foreach (PhoneDatasetRow row in rows)
-        {
-            sb.Append(row.Brand).Append(',')
-              .Append(row.ModelFamily).Append(',')
-              .Append(row.StorageGb).Append(',')
-              .Append(row.RamGb).Append(',')
-              .Append(row.BatteryHealth).Append(',')
-              .Append(row.Condition).Append(',')
-              .Append(row.ReleaseYear).Append(',')
-              .Append(row.Price.ToString(CultureInfo.InvariantCulture))
-              .AppendLine();
-        }
-
-        File.WriteAllText(outputPath, sb.ToString(), Encoding.UTF8);
-    }
-
-    private static PhoneDatasetRow GenerateOne(Random random)
-    {
-        string brand = PickBrand(random);
-        string modelFamily = PickModelFamily(brand, random);
-        int storageGb = PickStorage(brand, modelFamily, random);
-        int ramGb = PickRam(brand, modelFamily, random);
-        string condition = PickCondition(random);
-        int releaseYear = PickReleaseYear(modelFamily, random);
-        int batteryHealth = PickBatteryHealth(condition, releaseYear, random);
-
-        decimal price = PhonePricingRules.CalculatePrice(
-            brand,
-            modelFamily,
-            storageGb,
-            ramGb,
-            batteryHealth,
-            condition,
-            releaseYear,
-            random);
-
-        return new PhoneDatasetRow
-        {
-            Brand = brand,
-            ModelFamily = modelFamily,
-            StorageGb = storageGb,
-            RamGb = ramGb,
-            BatteryHealth = batteryHealth,
-            Condition = condition,
-            ReleaseYear = releaseYear,
-            Price = price
-        };
-    }
-
-    private static string PickBrand(Random random)
-        => Brands[random.Next(Brands.Length)];
-
-    private static string PickModelFamily(string brand, Random random)
-    {
-        return brand switch
-        {
-            "Apple" => PickFrom(random, "iPhone11", "iPhone12", "iPhone13", "iPhone14", "iPhone15"),
-            "Samsung" => PickFrom(random, "GalaxyS21", "GalaxyS22", "GalaxyS23", "GalaxyS24"),
-            "Google" => PickFrom(random, "Pixel6", "Pixel7", "Pixel8", "Pixel9"),
-            "OnePlus" => PickFrom(random, "OnePlus10", "OnePlus11", "OnePlus12"),
-            "Xiaomi" => PickFrom(random, "Xiaomi13", "Xiaomi14"),
-            "Nothing" => PickFrom(random, "NothingPhone1", "NothingPhone2"),
-            "Motorola" => PickFrom(random, "MotoEdge40", "MotoEdge50"),
-            _ => "UnknownPhone"
-        };
-    }
-
-    private static int PickStorage(string brand, string modelFamily, Random random)
-    {
-        if (brand == "Apple")
-        {
-            return PickFrom(random, 128, 256, 512);
-        }
-
-        if (modelFamily.StartsWith("GalaxyS24", StringComparison.OrdinalIgnoreCase) ||
-            modelFamily.StartsWith("Pixel9", StringComparison.OrdinalIgnoreCase) ||
-            modelFamily.StartsWith("OnePlus12", StringComparison.OrdinalIgnoreCase))
-        {
-            return PickFrom(random, 128, 256, 512);
-        }
-
-        return PickFrom(random, 128, 256);
-    }
-
-    private static int PickRam(string brand, string modelFamily, Random random)
-    {
-        if (brand == "Apple")
-        {
-            return modelFamily switch
-            {
-                "iPhone11" => 4,
-                "iPhone12" => 4,
-                "iPhone13" => 4,
-                "iPhone14" => 6,
-                "iPhone15" => 6,
-                _ => 6
-            };
-        }
-
-        if (brand == "Samsung")
-        {
-            return PickFrom(random, 8, 12);
-        }
-
-        if (brand == "Google")
-        {
-            return PickFrom(random, 8, 12);
-        }
-
-        if (brand == "OnePlus")
-        {
-            return PickFrom(random, 8, 12, 16);
-        }
-
-        if (brand == "Xiaomi")
-        {
-            return PickFrom(random, 8, 12);
-        }
-
-        return PickFrom(random, 6, 8, 12);
-    }
-
-    private static string PickCondition(Random random)
-    {
-        return Conditions[random.Next(Conditions.Length)];
-    }
-
-    private static int PickReleaseYear(string modelFamily, Random random)
-    {
-        int year = modelFamily switch
-        {
-            "iPhone11" => 2019,
-            "iPhone12" => 2020,
-            "iPhone13" => 2021,
-            "iPhone14" => 2022,
-            "iPhone15" => 2023,
-
-            "GalaxyS21" => 2021,
-            "GalaxyS22" => 2022,
-            "GalaxyS23" => 2023,
-            "GalaxyS24" => 2024,
-
-            "Pixel6" => 2021,
-            "Pixel7" => 2022,
-            "Pixel8" => 2023,
-            "Pixel9" => 2024,
-
-            "OnePlus10" => 2022,
-            "OnePlus11" => 2023,
-            "OnePlus12" => 2024,
-
-            "Xiaomi13" => 2023,
-            "Xiaomi14" => 2024,
-
-            "NothingPhone1" => 2022,
-            "NothingPhone2" => 2023,
-
-            "MotoEdge40" => 2023,
-            "MotoEdge50" => 2024,
-            _ => DateTime.UtcNow.Year - 1
+            "Apple" => 350f,
+            "Samsung" => 220f,
+            "Google" => 180f,
+            "OnePlus" => 140f,
+            "Xiaomi" => 90f,
+            _ => 0f
         };
 
-        // Tiny variance for realism if you want near-launch / market timing effects
-        return year;
-    }
+        price += storageGb * 0.9f;
+        price += ramGb * 18f;
+        price += (batteryHealth - 75f) * 9f;
+        price += (releaseYear - 2020f) * 85f;
 
-    private static int PickBatteryHealth(string condition, int releaseYear, Random random)
-    {
-        if (condition == "New")
+        if (modelFamily.Contains("Pro", StringComparison.OrdinalIgnoreCase) ||
+            modelFamily.Contains("S24", StringComparison.OrdinalIgnoreCase) ||
+            modelFamily.Contains("15", StringComparison.OrdinalIgnoreCase))
         {
-            return random.Next(98, 101);
+            price += 120f;
         }
 
-        int age = DateTime.UtcNow.Year - releaseYear;
-
-        return condition switch
+        price += condition switch
         {
-            "Refurbished" => Math.Clamp(95 - age * 2 + random.Next(-2, 3), 85, 100),
-            "UsedGood" => Math.Clamp(90 - age * 4 + random.Next(-4, 5), 75, 96),
-            "UsedFair" => Math.Clamp(84 - age * 5 + random.Next(-5, 6), 65, 90),
-            _ => 90
+            "New" => 180f,
+            "As New" => 100f,
+            "Refurbished" => 40f,
+            "Used" => -60f,
+            _ => 0f
         };
+
+        price += (float)((random.NextDouble() - 0.5) * 80.0);
+
+        return MathF.Max(80f, MathF.Round(price, 2));
     }
 
-    private static string PickFrom(Random random, params string[] options)
-        => options[random.Next(options.Length)];
+    private static float GuessReleaseYear(string modelFamily)
+    {
+        if (modelFamily.Contains("15", StringComparison.OrdinalIgnoreCase) ||
+            modelFamily.Contains("S24", StringComparison.OrdinalIgnoreCase) ||
+            modelFamily.Contains("Pixel 8", StringComparison.OrdinalIgnoreCase))
+        {
+            return 2024;
+        }
 
-    private static int PickFrom(Random random, params int[] options)
-        => options[random.Next(options.Length)];
+        if (modelFamily.Contains("14", StringComparison.OrdinalIgnoreCase) ||
+            modelFamily.Contains("S23", StringComparison.OrdinalIgnoreCase) ||
+            modelFamily.Contains("Pixel 7", StringComparison.OrdinalIgnoreCase) ||
+            modelFamily.Contains("OnePlus 11", StringComparison.OrdinalIgnoreCase))
+        {
+            return 2023;
+        }
+
+        if (modelFamily.Contains("13", StringComparison.OrdinalIgnoreCase) ||
+            modelFamily.Contains("S22", StringComparison.OrdinalIgnoreCase) ||
+            modelFamily.Contains("Pixel 6", StringComparison.OrdinalIgnoreCase) ||
+            modelFamily.Contains("OnePlus 10", StringComparison.OrdinalIgnoreCase))
+        {
+            return 2022;
+        }
+
+        return 2021;
+    }
+
+    private static T Pick<T>(IReadOnlyList<T> values, Random random)
+        => values[random.Next(values.Count)];
 }

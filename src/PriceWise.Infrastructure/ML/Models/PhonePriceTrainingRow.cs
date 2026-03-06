@@ -30,6 +30,5 @@ public sealed class PhonePriceTrainingRow
 
     // Label column
     [LoadColumn(7)]
-    [ColumnName("Label")]
     public float Price { get; set; }
 }

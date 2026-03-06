@@ -1,79 +1,116 @@
 using Microsoft.ML;
-using Microsoft.ML.Trainers.FastTree;
-using PriceWise.Infrastructure.ML.Abstractions;
+using Microsoft.ML.Transforms;
+using PriceWise.Domain.Entities;
 using PriceWise.Infrastructure.ML.Models;
 
 namespace PriceWise.Infrastructure.ML.Definitions;
 
 /// <summary>
-/// Defines the ML.NET pipeline and sanity sample for laptop price prediction.
+/// Price prediction category definition for laptops.
 /// </summary>
 public sealed class LaptopPriceModelDefinition
-    : ITabularRegressionDefinition<LaptopPriceTrainingRow, LaptopPricePrediction>
+    : MlPricePredictionCategoryBase<LaptopProductFeatures, LaptopPriceTrainingRow, LaptopPricePrediction>
 {
-    public string ModelName => "laptop-price";
+    /// <inheritdoc />
+    public override string Key => "laptops";
 
-    public char SeparatorChar => ',';
+    /// <inheritdoc />
+    public override string DatasetFileName => "laptops.csv";
 
-    public IEstimator<ITransformer> BuildTrainingPipeline(MLContext ml)
+    /// <inheritdoc />
+    public override string ModelFileName => "laptop-price-model.zip";
+
+    /// <inheritdoc />
+    public override IEstimator<ITransformer> BuildTrainingPipeline(MLContext mlContext)
     {
-        return ml.Transforms.Text.NormalizeText("BrandNorm", nameof(LaptopPriceTrainingRow.Brand))
-            .Append(ml.Transforms.Text.NormalizeText("CpuNorm", nameof(LaptopPriceTrainingRow.Cpu)))
-            .Append(ml.Transforms.Text.NormalizeText("GpuNorm", nameof(LaptopPriceTrainingRow.Gpu)))
-            .Append(ml.Transforms.Text.NormalizeText("ConditionNorm", nameof(LaptopPriceTrainingRow.Condition)))
-            .Append(ml.Transforms.Text.NormalizeText("SegmentNorm", nameof(LaptopPriceTrainingRow.Segment)))
+        string[] categoricalColumns =
+        [
+            nameof(LaptopPriceTrainingRow.Brand),
+            nameof(LaptopPriceTrainingRow.Cpu),
+            nameof(LaptopPriceTrainingRow.Gpu),
+            nameof(LaptopPriceTrainingRow.Condition),
+            nameof(LaptopPriceTrainingRow.Segment)
+        ];
 
-            .Append(ml.Transforms.Conversion.MapValueToKey("BrandKey", "BrandNorm"))
-            .Append(ml.Transforms.Categorical.OneHotEncoding("BrandVec", "BrandKey"))
+        string[] numericColumns =
+        [
+            nameof(LaptopPriceTrainingRow.RamGb),
+            nameof(LaptopPriceTrainingRow.StorageGb),
+            nameof(LaptopPriceTrainingRow.ScreenSizeInch),
+            nameof(LaptopPriceTrainingRow.RefreshRate),
+            nameof(LaptopPriceTrainingRow.ReleaseYear)
+        ];
 
-            .Append(ml.Transforms.Conversion.MapValueToKey("CpuKey", "CpuNorm"))
-            .Append(ml.Transforms.Categorical.OneHotEncoding("CpuVec", "CpuKey"))
+        IEstimator<ITransformer>? oneHotPipeline = null;
 
-            .Append(ml.Transforms.Conversion.MapValueToKey("GpuKey", "GpuNorm"))
-            .Append(ml.Transforms.Categorical.OneHotEncoding("GpuVec", "GpuKey"))
+        foreach (string column in categoricalColumns)
+        {
+            OneHotEncodingEstimator? step = mlContext.Transforms.Categorical.OneHotEncoding(
+                outputColumnName: $"{column}Encoded",
+                inputColumnName: column);
 
-            .Append(ml.Transforms.Conversion.MapValueToKey("ConditionKey", "ConditionNorm"))
-            .Append(ml.Transforms.Categorical.OneHotEncoding("ConditionVec", "ConditionKey"))
+            oneHotPipeline = oneHotPipeline is null
+                ? step
+                : oneHotPipeline.Append(step);
+        }
 
-            .Append(ml.Transforms.Conversion.MapValueToKey("SegmentKey", "SegmentNorm"))
-            .Append(ml.Transforms.Categorical.OneHotEncoding("SegmentVec", "SegmentKey"))
+        string[] featureColumns = categoricalColumns
+            .Select(column => $"{column}Encoded")
+            .Concat(numericColumns)
+            .ToArray();
 
-            .Append(ml.Transforms.Concatenate(
-                "Features",
-                "BrandVec",
-                "CpuVec",
-                "GpuVec",
-                "ConditionVec",
-                "SegmentVec",
-                nameof(LaptopPriceTrainingRow.RamGb),
-                nameof(LaptopPriceTrainingRow.StorageGb),
-                nameof(LaptopPriceTrainingRow.ScreenSizeInch),
-                nameof(LaptopPriceTrainingRow.RefreshRate),
-                nameof(LaptopPriceTrainingRow.ReleaseYear)))
+        if (oneHotPipeline is null)
+        {
+            throw new InvalidOperationException("No categorical columns were configured for laptop training.");
+        }
 
-            .Append(ml.Regression.Trainers.FastTree(
-                labelColumnName: "Label",
-                featureColumnName: "Features",
-                numberOfLeaves: 20,
-                numberOfTrees: 100,
-                minimumExampleCountPerLeaf: 2));
+        return oneHotPipeline
+            .Append(mlContext.Transforms.Concatenate("Features", featureColumns))
+            .Append(mlContext.Regression.Trainers.FastTree(
+                labelColumnName: nameof(LaptopPriceTrainingRow.Price),
+                featureColumnName: "Features"));
     }
 
-    public LaptopPriceTrainingRow CreateSanitySample()
+    /// <inheritdoc />
+    public override LaptopPriceTrainingRow MapFeaturesToTrainingRow(LaptopProductFeatures features)
     {
+        ArgumentNullException.ThrowIfNull(features);
+
         return new LaptopPriceTrainingRow
         {
-            Brand = "Lenovo",
-            Cpu = "i5",
-            RamGb = 16,
-            StorageGb = 512,
-            Gpu = "Integrated",
-            ScreenSizeInch = 15.6f,
-            RefreshRate = 60,
-            ReleaseYear = DateTime.UtcNow.Year - 1,
-            Condition = "New",
-            Segment = "Mainstream",
-            Price = 0
+            Brand = features.Brand,
+            Cpu = features.Cpu,
+            RamGb = features.RamGb,
+            StorageGb = features.StorageGb,
+            Gpu = features.Gpu,
+            ScreenSizeInch = features.ScreenSizeInch,
+            RefreshRate = features.RefreshRate,
+            ReleaseYear = features.ReleaseYear,
+            Condition = features.Condition,
+            Segment = features.Segment,
+            Price = 0f
         };
     }
+
+    /// <inheritdoc />
+    public override LaptopProductFeatures CreateSanityFeatures()
+    {
+        return new LaptopProductFeatures
+        {
+            Brand = "Lenovo",
+            Cpu = "Intel i7",
+            RamGb = 16,
+            StorageGb = 512,
+            Gpu = "RTX 4060",
+            ScreenSizeInch = 15.6f,
+            RefreshRate = 144,
+            ReleaseYear = 2023,
+            Condition = "Refurbished",
+            Segment = "Gaming"
+        };
+    }
+
+    /// <inheritdoc />
+    public override LaptopPriceTrainingRow CreateSanityTrainingRow()
+        => MapFeaturesToTrainingRow(CreateSanityFeatures());
 }

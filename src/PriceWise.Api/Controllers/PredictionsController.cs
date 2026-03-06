@@ -1,84 +1,103 @@
+using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
-using PriceWise.Application.Interfaces;
-using PriceWise.Domain.Entities;
+using PriceWise.Api.Helpers;
+using PriceWise.Application.Abstractions.PricePrediction;
 
 namespace PriceWise.Api.Controllers;
 
+/// <summary>
+/// Generic controller for price predictions per category.
+/// </summary>
 [ApiController]
 [Route("api/predictions")]
-public sealed class PredictionsController : ControllerBase
+public sealed class PredictionController : ControllerBase
 {
-    private readonly IPricePredictor _predictor;
+    private readonly IPricePredictionCategoryRegistry _categoryRegistry;
+    private readonly IPricePredictionService _predictionService;
 
-    public PredictionsController(IPricePredictor predictor)
+    /// <summary>
+    /// Initializes a new instance of the <see cref="PredictionController"/> class.
+    /// </summary>
+    /// <param name="categoryRegistry">The category registry.</param>
+    /// <param name="predictionService">The prediction service.</param>
+    public PredictionController(
+        IPricePredictionCategoryRegistry categoryRegistry,
+        IPricePredictionService predictionService)
     {
-        _predictor = predictor;
+        _categoryRegistry = categoryRegistry;
+        _predictionService = predictionService;
     }
 
     /// <summary>
-    /// Predicts the price of a laptop based on the provided feature set.
+    /// Predicts a price for the given category using the posted category-specific features payload.
     /// </summary>
-    /// <param name="features">Laptop features used for prediction.</param>
-    /// <returns>A predicted price (float) and some debug metadata.</returns>
-    [HttpPost("price/laptops")]
-    [ProducesResponseType(typeof(PredictionResponse), StatusCodes.Status200OK)]
+    /// <param name="category">The category key.</param>
+    /// <param name="body">The category-specific JSON body.</param>
+    /// <returns>The prediction result.</returns>
+    [HttpPost("{category}")]
+    [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
-    public async Task<ActionResult<PredictionResponse>> PredictLaptopPrice([FromBody] LaptopProductFeatures features)
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status500InternalServerError)]
+    public IActionResult Predict(
+        [FromRoute] string category,
+        [FromBody] JsonElement body)
     {
-        if (features is null)
+        try
         {
-            return BadRequest(Problem(title: "Invalid input", detail: "Request body is required."));
-        }
-
-        // Minimal validation (keep it simple)
-        if (string.IsNullOrWhiteSpace(features.Brand) ||
-            string.IsNullOrWhiteSpace(features.Cpu) ||
-            string.IsNullOrWhiteSpace(features.Gpu))
-        {
-            return BadRequest(Problem(
-                title: "Invalid input",
-                detail: "brand, cpu and gpu are required."));
-        }
-
-        if (features.RamGb <= 0 || features.StorageGb <= 0)
-        {
-            return BadRequest(Problem(
-                title: "Invalid input",
-                detail: "ramGb and storageGb must be > 0."));
-        }
-
-        float predictedPrice = await _predictor.PredictPriceAsync(features);
-
-        // optional: clamp negatives (some regressors can output negatives)
-        if (predictedPrice < 0)
-        {
-            predictedPrice = 0;
-        }
-
-        PredictionResponse? response = new PredictionResponse
-        {
-            PredictedPrice = predictedPrice,
-            Predictor = _predictor.GetType().FullName ?? _predictor.GetType().Name,
-            Input = new LaptopProductFeatures
+            if (!_categoryRegistry.TryGet(category, out IPricePredictionCategory? resolvedCategory) || resolvedCategory is null)
             {
-                Brand = features.Brand,
-                Cpu = features.Cpu,
-                Gpu = features.Gpu,
-                RamGb = features.RamGb,
-                StorageGb = features.StorageGb
+                return NotFound(new ProblemDetails
+                {
+                    Title = "Category not found",
+                    Detail = $"No price prediction category is registered with key '{category}'.",
+                    Status = StatusCodes.Status404NotFound
+                });
             }
-        };
 
-        return Ok(response);
-    }
+            object features = CategoryFeatureDeserializer.Deserialize(body, resolvedCategory);
+            object prediction = _predictionService.Predict(resolvedCategory.Key, features);
 
-    /// <summary>
-    /// Response returned by the prediction endpoint.
-    /// </summary>
-    public sealed class PredictionResponse
-    {
-        public float PredictedPrice { get; init; }
-        public string Predictor { get; init; } = string.Empty;
-        public LaptopProductFeatures Input { get; init; } = new();
+            return Ok(PricePredictionResponseFactory.Create(
+                resolvedCategory.Key,
+                features,
+                prediction));
+        }
+        catch (JsonException ex)
+        {
+            return BadRequest(new ProblemDetails
+            {
+                Title = "Invalid JSON body",
+                Detail = ex.Message,
+                Status = StatusCodes.Status400BadRequest
+            });
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new ProblemDetails
+            {
+                Title = "Invalid prediction input",
+                Detail = ex.Message,
+                Status = StatusCodes.Status400BadRequest
+            });
+        }
+        catch (FileNotFoundException ex)
+        {
+            return NotFound(new ProblemDetails
+            {
+                Title = "Model file not found",
+                Detail = ex.Message,
+                Status = StatusCodes.Status404NotFound
+            });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(StatusCodes.Status500InternalServerError, new ProblemDetails
+            {
+                Title = "Prediction failed",
+                Detail = ex.Message,
+                Status = StatusCodes.Status500InternalServerError
+            });
+        }
     }
 }

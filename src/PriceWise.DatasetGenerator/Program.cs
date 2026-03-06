@@ -1,71 +1,134 @@
-﻿using PriceWise.DatasetGenerator.Generators;
+﻿using PriceWise.DatasetGenerator.Abstractions;
+using PriceWise.DatasetGenerator.Generators;
 using PriceWise.DatasetGenerator.Models;
+using PriceWise.DatasetGenerator.Registry;
+using PriceWise.DatasetGenerator.Services;
 
-const int defaultCount = 2500;
-const int defaultSeed = 42;
+namespace PriceWise.DatasetGenerator;
 
-string repoRoot = Directory.GetParent(AppContext.BaseDirectory)!
-    .Parent!
-    .Parent!
-    .Parent!
-    .Parent!
-    .FullName;
-
-if (args.Length == 0)
+internal static class Program
 {
-    Console.WriteLine("Usage:");
-    Console.WriteLine("  dotnet run --project src/PriceWise.DatasetGenerator -- laptops [count] [seed]");
-    Console.WriteLine("  dotnet run --project src/PriceWise.DatasetGenerator -- phones [count] [seed]");
-    return;
-}
-
-string datasetType = args[0].Trim().ToLowerInvariant();
-
-int count = defaultCount;
-int seed = defaultSeed;
-
-if (args.Length >= 2 && int.TryParse(args[1], out int parsedCount) && parsedCount > 0)
-{
-    count = parsedCount;
-}
-
-if (args.Length >= 3 && int.TryParse(args[2], out int parsedSeed))
-{
-    seed = parsedSeed;
-}
-
-switch (datasetType)
-{
-    case "laptops":
+    private static int Main(string[] args)
+    {
+        try
         {
-            string outputPath = Path.Combine(repoRoot, "..", "data", "datasets", "laptops.csv");
+            DatasetCategoryGeneratorRegistry registry = BuildRegistry();
+            CsvDatasetWriter writer = new();
 
-            LaptopDatasetGenerator? generator = new LaptopDatasetGenerator();
-            IReadOnlyList<LaptopDatasetRow> rows = generator.Generate(count, seed);
-            generator.WriteCsv(outputPath, rows);
+            if (args.Length == 0)
+            {
+                PrintUsage(registry);
+                return 1;
+            }
 
-            Console.WriteLine($"Generated {rows.Count} laptop rows.");
-            Console.WriteLine($"Output: {outputPath}");
-            Console.WriteLine($"Seed: {seed}");
-            break;
+            if (args.Length == 1 && string.Equals(args[0], "list", StringComparison.OrdinalIgnoreCase))
+            {
+                PrintCategories(registry);
+                return 0;
+            }
+
+            string categoryKey = args[0];
+
+            if (!registry.TryGet(categoryKey, out IDatasetCategoryGenerator? generator) || generator is null)
+            {
+                Console.WriteLine($"Unknown category '{categoryKey}'.");
+                Console.WriteLine();
+                PrintCategories(registry);
+                return 1;
+            }
+
+            int count = args.Length >= 2 && int.TryParse(args[1], out int parsedCount)
+                ? parsedCount
+                : 5000;
+
+            int seed = args.Length >= 3 && int.TryParse(args[2], out int parsedSeed)
+                ? parsedSeed
+                : 42;
+
+            string repoRoot = ResolveRepoRoot();
+            string outputPath = Path.Combine(repoRoot, "data", "datasets", generator.FileName);
+
+            Random random = new(seed);
+            IReadOnlyList<object> rows = generator.GenerateRows(count, random);
+
+            writer.Write(outputPath, rows);
+
+            DatasetGenerationResult result = new()
+            {
+                CategoryKey = generator.Key,
+                OutputPath = outputPath,
+                RowCount = rows.Count
+            };
+
+            PrintResult(result);
+            return 0;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("Dataset generation failed.");
+            Console.WriteLine(ex.Message);
+            return 1;
+        }
+    }
+
+    private static DatasetCategoryGeneratorRegistry BuildRegistry()
+    {
+        IDatasetCategoryGenerator[] generators =
+        [
+            new LaptopDatasetCategoryGenerator(),
+            new PhoneDatasetCategoryGenerator(),
+            new TabletDatasetCategoryGenerator()
+        ];
+
+        return new DatasetCategoryGeneratorRegistry(generators);
+    }
+
+    private static string ResolveRepoRoot()
+    {
+        string current = AppContext.BaseDirectory;
+        DirectoryInfo? directory = new(current);
+
+        while (directory is not null)
+        {
+            bool hasSrc = Directory.Exists(Path.Combine(directory.FullName, "src"));
+            bool hasData = Directory.Exists(Path.Combine(directory.FullName, "data"));
+
+            if (hasSrc && hasData)
+            {
+                return directory.FullName;
+            }
+
+            directory = directory.Parent;
         }
 
-    case "phones":
+        throw new InvalidOperationException("Could not resolve repository root.");
+    }
+
+    private static void PrintUsage(DatasetCategoryGeneratorRegistry registry)
+    {
+        Console.WriteLine("Usage:");
+        Console.WriteLine("  PriceWise.DatasetGenerator <category> [count] [seed]");
+        Console.WriteLine("  PriceWise.DatasetGenerator list");
+        Console.WriteLine();
+
+        PrintCategories(registry);
+    }
+
+    private static void PrintCategories(DatasetCategoryGeneratorRegistry registry)
+    {
+        Console.WriteLine("Available categories:");
+
+        foreach (IDatasetCategoryGenerator generator in registry.GetAll().OrderBy(x => x.Key))
         {
-            string outputPath = Path.Combine(repoRoot, "..", "data", "datasets", "phones.csv");
-
-            PhoneDatasetGenerator? generator = new PhoneDatasetGenerator();
-            IReadOnlyList<PhoneDatasetRow> rows = generator.Generate(count, seed);
-            generator.WriteCsv(outputPath, rows);
-
-            Console.WriteLine($"Generated {rows.Count} phone rows.");
-            Console.WriteLine($"Output: {outputPath}");
-            Console.WriteLine($"Seed: {seed}");
-            break;
+            Console.WriteLine($"  - {generator.Key}");
         }
+    }
 
-    default:
-        Console.WriteLine($"Unknown dataset type: '{datasetType}'");
-        Console.WriteLine("Supported types: laptops, phones");
-        break;
+    private static void PrintResult(DatasetGenerationResult result)
+    {
+        Console.WriteLine("Dataset generated successfully.");
+        Console.WriteLine($"Category : {result.CategoryKey}");
+        Console.WriteLine($"Rows     : {result.RowCount}");
+        Console.WriteLine($"Output   : {result.OutputPath}");
+    }
 }

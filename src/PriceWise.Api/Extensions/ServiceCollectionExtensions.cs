@@ -1,8 +1,7 @@
-using PriceWise.Application.Interfaces;
-using PriceWise.Infrastructure.ML.Models;
-using Microsoft.Extensions.ML;
-using PriceWise.Infrastructure.ML.Prediction;
-using Microsoft.ML;
+using PriceWise.Application.Abstractions.PricePrediction;
+using PriceWise.Infrastructure.ML.Definitions;
+using PriceWise.Infrastructure.ML.Registry;
+using PriceWise.Infrastructure.ML.Services;
 
 namespace PriceWise.Api.Extensions;
 
@@ -13,44 +12,28 @@ namespace PriceWise.Api.Extensions;
 public static class ServiceCollectionExtensions
 {
     /// <summary>
-    /// Registers API related services (controllers, swagger, etc.).
+    /// Registers PriceWise infrastructure and application services.
     /// </summary>
-    public static IServiceCollection AddApiServices(this IServiceCollection services)
+    /// <param name="services">The service collection.</param>
+    /// <param name="contentRootPath">The ASP.NET content root path.</param>
+    /// <returns>The updated service collection.</returns>
+    public static IServiceCollection AddPriceWiseServices(
+        this IServiceCollection services,
+        string contentRootPath)
     {
-        services.AddControllers();
+        string repoRootPath = Directory.GetParent(contentRootPath)!.Parent!.FullName;
 
-        // Swagger (via Swashbuckle)
-        services.AddEndpointsApiExplorer();
-        services.AddSwaggerGen();
+        services.AddSingleton<IPriceWisePathResolver>(_ => new PriceWisePathResolver(repoRootPath));
 
-        return services;
-    }
+        services.AddSingleton<IPricePredictionCategory, LaptopPriceModelDefinition>();
+        services.AddSingleton<IPricePredictionCategory, PhonePriceModelDefinition>();
+        services.AddSingleton<IPricePredictionCategory, TabletPriceModelDefinition>();
 
-    /// <summary>
-    /// Registers Application layer services.
-    /// (Empty for now - later: use cases, validators, Result handling, etc.)
-    /// </summary>
-    public static IServiceCollection AddApplicationServices(this IServiceCollection services)
-    {
-        return services;
-    }
+        services.AddSingleton<IPricePredictionCategoryRegistry, PricePredictionCategoryRegistry>();
 
-    /// <summary>
-    /// Registers Infrastructure layer services (ML.NET predictors, model loading, etc.).
-    /// </summary>
-    /// <param name="services">Service collection.</param>
-    /// <param name="env">Host environment used to resolve repo-root paths.</param>
-    public static IServiceCollection AddInfrastructureServices(this IServiceCollection services, string modelPath)
-    {
-        services.AddSingleton(new MLContext(seed: 1));
-
-        services.AddSingleton<ITrainedModelProvider>(sp =>
-        {
-            MLContext? ml = sp.GetRequiredService<MLContext>();
-            return new FileTrainedModelProvider(ml, modelPath);
-        });
-
-        services.AddScoped<IPricePredictor, MlNetPricePredictor>();
+        services.AddSingleton<ITrainedModelCatalog, FileTrainedModelCatalog>();
+        services.AddSingleton<IPricePredictionService, MlPricePredictionService>();
+        services.AddSingleton<IPriceTrainingService, MlPriceTrainingService>();
 
         return services;
     }

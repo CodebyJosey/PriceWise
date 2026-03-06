@@ -6,36 +6,37 @@ using PriceWise.Infrastructure.ML.Models;
 namespace PriceWise.Infrastructure.ML.Definitions;
 
 /// <summary>
-/// Price prediction category definition for phones.
+/// Price prediction category definition for tablets.
 /// </summary>
-public sealed class PhonePriceModelDefinition
-    : MlPricePredictionCategoryBase<PhoneProductFeatures, PhonePriceTrainingRow, PhonePricePrediction>
+public sealed class TabletPriceModelDefinition
+    : MlPricePredictionCategoryBase<TabletProductFeatures, TabletPriceTrainingRow, TabletPricePrediction>
 {
     /// <inheritdoc />
-    public override string Key => "phones";
+    public override string Key => "tablets";
 
     /// <inheritdoc />
-    public override string DatasetFileName => "phones.csv";
+    public override string DatasetFileName => "tablets.csv";
 
     /// <inheritdoc />
-    public override string ModelFileName => "phone-price-model.zip";
+    public override string ModelFileName => "tablet-price-model.zip";
 
     /// <inheritdoc />
     public override IEstimator<ITransformer> BuildTrainingPipeline(MLContext mlContext)
     {
         string[] categoricalColumns =
         [
-            nameof(PhonePriceTrainingRow.Brand),
-            nameof(PhonePriceTrainingRow.ModelFamily),
-            nameof(PhonePriceTrainingRow.Condition)
+            nameof(TabletPriceTrainingRow.Brand),
+            nameof(TabletPriceTrainingRow.ModelFamily),
+            nameof(TabletPriceTrainingRow.Condition),
+            nameof(TabletPriceTrainingRow.Connectivity)
         ];
 
         string[] numericColumns =
         [
-            nameof(PhonePriceTrainingRow.StorageGb),
-            nameof(PhonePriceTrainingRow.RamGb),
-            nameof(PhonePriceTrainingRow.BatteryHealth),
-            nameof(PhonePriceTrainingRow.ReleaseYear)
+            nameof(TabletPriceTrainingRow.StorageGb),
+            nameof(TabletPriceTrainingRow.RamGb),
+            nameof(TabletPriceTrainingRow.ScreenSizeInch),
+            nameof(TabletPriceTrainingRow.ReleaseYear)
         ];
 
         IEstimator<ITransformer>? oneHotPipeline = null;
@@ -58,50 +59,52 @@ public sealed class PhonePriceModelDefinition
 
         if (oneHotPipeline is null)
         {
-            throw new InvalidOperationException("No categorical columns were configured for phone training.");
+            throw new InvalidOperationException("No categorical columns were configured for tablet training.");
         }
 
         return oneHotPipeline
             .Append(mlContext.Transforms.Concatenate("Features", featureColumns))
             .Append(mlContext.Regression.Trainers.FastTree(
-                labelColumnName: nameof(PhonePriceTrainingRow.Price),
+                labelColumnName: nameof(TabletPriceTrainingRow.Price),
                 featureColumnName: "Features"));
     }
 
     /// <inheritdoc />
-    public override PhonePriceTrainingRow MapFeaturesToTrainingRow(PhoneProductFeatures features)
+    public override TabletPriceTrainingRow MapFeaturesToTrainingRow(TabletProductFeatures features)
     {
         ArgumentNullException.ThrowIfNull(features);
 
-        return new PhonePriceTrainingRow
+        return new TabletPriceTrainingRow
         {
             Brand = features.Brand,
             ModelFamily = features.ModelFamily,
             StorageGb = features.StorageGb,
             RamGb = features.RamGb,
-            BatteryHealth = features.BatteryHealth,
+            ScreenSizeInch = features.ScreenSizeInch,
             Condition = features.Condition,
             ReleaseYear = features.ReleaseYear,
+            Connectivity = features.Connectivity,
             Price = 0f
         };
     }
 
     /// <inheritdoc />
-    public override PhoneProductFeatures CreateSanityFeatures()
+    public override TabletProductFeatures CreateSanityFeatures()
     {
-        return new PhoneProductFeatures
+        return new TabletProductFeatures
         {
             Brand = "Apple",
-            ModelFamily = "iPhone 13",
-            StorageGb = 128,
-            RamGb = 4,
-            BatteryHealth = 88,
-            Condition = "Used",
-            ReleaseYear = 2021
+            ModelFamily = "iPad Air",
+            StorageGb = 256,
+            RamGb = 8,
+            ScreenSizeInch = 10.9f,
+            Condition = "Refurbished",
+            ReleaseYear = 2023,
+            Connectivity = "WiFi"
         };
     }
 
     /// <inheritdoc />
-    public override PhonePriceTrainingRow CreateSanityTrainingRow()
+    public override TabletPriceTrainingRow CreateSanityTrainingRow()
         => MapFeaturesToTrainingRow(CreateSanityFeatures());
 }

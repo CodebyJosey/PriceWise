@@ -1,14 +1,14 @@
 using PriceWise.Api.Extensions;
 
-WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
+var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddApiServices();
-builder.Services.AddApplicationServices();
-string repoRoot = Directory.GetParent(builder.Environment.ContentRootPath)!.Parent!.FullName;
-string modelPath = Path.Combine(repoRoot, "artifacts", "models", "laptop-price-model.zip");
-builder.Services.AddInfrastructureServices(modelPath);
+builder.Services.AddControllers();
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen();
 
-WebApplication app = builder.Build();
+builder.Services.AddPriceWiseServices(builder.Environment.ContentRootPath);
+
+WebApplication? app = builder.Build();
 
 if (app.Environment.IsDevelopment())
 {
@@ -17,9 +17,6 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
-app.UseAuthorization();
 app.MapControllers();
 
 app.Run();
-
-public partial class Program { }
