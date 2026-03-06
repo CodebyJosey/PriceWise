@@ -1,7 +1,7 @@
 namespace PriceWise.Application.Abstractions.PricePrediction;
 
 /// <summary>
-/// Represents persisted metadata for the latest successful training run of a category.
+/// Represents persisted metadata for a trained model version of a category.
 /// </summary>
 public sealed class PriceTrainingMetadata
 {
@@ -9,6 +9,11 @@ public sealed class PriceTrainingMetadata
     /// Gets or sets the category key.
     /// </summary>
     public required string CategoryKey { get; init; }
+
+    /// <summary>
+    /// Gets or sets the version number.
+    /// </summary>
+    public int Version { get; init; }
 
     /// <summary>
     /// Gets or sets the UTC timestamp of the training run.
@@ -21,7 +26,7 @@ public sealed class PriceTrainingMetadata
     public required string DatasetPath { get; init; }
 
     /// <summary>
-    /// Gets or sets the model path where the trained model was saved.
+    /// Gets or sets the model path where the trained model version was saved.
     /// </summary>
     public required string ModelPath { get; init; }
 

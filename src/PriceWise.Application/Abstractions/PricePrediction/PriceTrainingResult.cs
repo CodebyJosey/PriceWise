@@ -11,6 +11,11 @@ public sealed class PriceTrainingResult
     public required string CategoryKey { get; init; }
 
     /// <summary>
+    /// Gets or sets the created model version.
+    /// </summary>
+    public int Version { get; init; }
+
+    /// <summary>
     /// Gets or sets the dataset path used for training.
     /// </summary>
     public required string DatasetPath { get; init; }

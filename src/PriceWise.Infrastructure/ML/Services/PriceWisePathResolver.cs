@@ -3,7 +3,7 @@ using PriceWise.Application.Abstractions.PricePrediction;
 namespace PriceWise.Infrastructure.ML.Services;
 
 /// <summary>
-/// Resolves standard dataset and model paths inside the repository structure.
+/// Resolves standard dataset, model and metadata paths inside the repository structure.
 /// </summary>
 public sealed class PriceWisePathResolver : IPriceWisePathResolver
 {
@@ -32,10 +32,42 @@ public sealed class PriceWisePathResolver : IPriceWisePathResolver
     }
 
     /// <inheritdoc />
-    public string GetModelPath(IPricePredictionCategory category)
+    public string GetModelDirectoryPath(IPricePredictionCategory category)
     {
         ArgumentNullException.ThrowIfNull(category);
 
-        return Path.Combine(_repoRootPath, "artifacts", "models", category.ModelFileName);
+        return Path.Combine(_repoRootPath, "artifacts", "models", category.Key);
+    }
+
+    /// <inheritdoc />
+    public string GetMetadataDirectoryPath(IPricePredictionCategory category)
+    {
+        ArgumentNullException.ThrowIfNull(category);
+
+        return Path.Combine(_repoRootPath, "artifacts", "metadata", category.Key);
+    }
+
+    /// <inheritdoc />
+    public string GetVersionedModelPath(IPricePredictionCategory category, int version)
+    {
+        ArgumentNullException.ThrowIfNull(category);
+
+        return Path.Combine(GetModelDirectoryPath(category), $"v{version}.zip");
+    }
+
+    /// <inheritdoc />
+    public string GetVersionedMetadataPath(IPricePredictionCategory category, int version)
+    {
+        ArgumentNullException.ThrowIfNull(category);
+
+        return Path.Combine(GetMetadataDirectoryPath(category), $"v{version}.json");
+    }
+
+    /// <inheritdoc />
+    public string GetActiveMetadataPath(IPricePredictionCategory category)
+    {
+        ArgumentNullException.ThrowIfNull(category);
+
+        return Path.Combine(GetMetadataDirectoryPath(category), "active.json");
     }
 }

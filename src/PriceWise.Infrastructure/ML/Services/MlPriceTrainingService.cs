@@ -8,13 +8,14 @@ namespace PriceWise.Infrastructure.ML.Services;
 
 /// <summary>
 /// Generic ML.NET training service that works for all registered categories.
+/// Creates a new version on every successful training run.
 /// </summary>
 public sealed class MlPriceTrainingService : IPriceTrainingService
 {
     private readonly IPricePredictionCategoryRegistry _categoryRegistry;
     private readonly IPriceWisePathResolver _pathResolver;
     private readonly ITrainedModelCatalog _trainedModelCatalog;
-    private readonly IPriceTrainingMetadataStore _metadataStore;
+    private readonly IPriceModelVersionStore _versionStore;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="MlPriceTrainingService"/> class.
@@ -22,17 +23,17 @@ public sealed class MlPriceTrainingService : IPriceTrainingService
     /// <param name="categoryRegistry">The category registry.</param>
     /// <param name="pathResolver">The path resolver.</param>
     /// <param name="trainedModelCatalog">The trained model catalog.</param>
-    /// <param name="metadataStore">The training metadata store.</param>
+    /// <param name="versionStore">The version store.</param>
     public MlPriceTrainingService(
         IPricePredictionCategoryRegistry categoryRegistry,
         IPriceWisePathResolver pathResolver,
         ITrainedModelCatalog trainedModelCatalog,
-        IPriceTrainingMetadataStore metadataStore)
+        IPriceModelVersionStore versionStore)
     {
         _categoryRegistry = categoryRegistry;
         _pathResolver = pathResolver;
         _trainedModelCatalog = trainedModelCatalog;
-        _metadataStore = metadataStore;
+        _versionStore = versionStore;
     }
 
     /// <inheritdoc />
@@ -49,7 +50,6 @@ public sealed class MlPriceTrainingService : IPriceTrainingService
         }
 
         string datasetPath = _pathResolver.GetDatasetPath(category);
-        string modelPath = _pathResolver.GetModelPath(category);
 
         if (!File.Exists(datasetPath))
         {
@@ -57,6 +57,9 @@ public sealed class MlPriceTrainingService : IPriceTrainingService
                 $"Dataset file was not found for category '{categoryKey}'. Expected path: '{datasetPath}'.",
                 datasetPath);
         }
+
+        int version = _versionStore.GetNextVersionNumber(categoryKey);
+        string modelPath = _pathResolver.GetVersionedModelPath(category, version);
 
         string? modelDirectory = Path.GetDirectoryName(modelPath);
         if (!string.IsNullOrWhiteSpace(modelDirectory))
@@ -80,7 +83,7 @@ public sealed class MlPriceTrainingService : IPriceTrainingService
 
         EnsureColumnExists(
             predictions.Schema,
-            nameof(PriceTrainingResult.CategoryKey).Replace(nameof(PriceTrainingResult.CategoryKey), "Price"),
+            "Price",
             "The transformed prediction schema does not contain the required label column 'Price'.");
 
         EnsureColumnExists(
@@ -95,11 +98,11 @@ public sealed class MlPriceTrainingService : IPriceTrainingService
 
         SaveModel(mlContext, model, split.TrainSet.Schema, modelPath);
 
-        _trainedModelCatalog.Reload(categoryKey);
-
-        PriceTrainingResult result = new()
+        PriceTrainingMetadata metadata = new()
         {
             CategoryKey = category.Key,
+            Version = version,
+            TrainedAtUtc = DateTime.UtcNow,
             DatasetPath = datasetPath,
             ModelPath = modelPath,
             RSquared = metrics.RSquared,
@@ -108,19 +111,20 @@ public sealed class MlPriceTrainingService : IPriceTrainingService
             MeanSquaredError = metrics.MeanSquaredError
         };
 
-        _metadataStore.Save(new PriceTrainingMetadata
-        {
-            CategoryKey = result.CategoryKey,
-            TrainedAtUtc = DateTime.UtcNow,
-            DatasetPath = result.DatasetPath,
-            ModelPath = result.ModelPath,
-            RSquared = result.RSquared,
-            RootMeanSquaredError = result.RootMeanSquaredError,
-            MeanAbsoluteError = result.MeanAbsoluteError,
-            MeanSquaredError = result.MeanSquaredError
-        });
+        _versionStore.SaveVersion(metadata);
+        _trainedModelCatalog.Reload(categoryKey);
 
-        return result;
+        return new PriceTrainingResult
+        {
+            CategoryKey = category.Key,
+            Version = version,
+            DatasetPath = datasetPath,
+            ModelPath = modelPath,
+            RSquared = metrics.RSquared,
+            RootMeanSquaredError = metrics.RootMeanSquaredError,
+            MeanAbsoluteError = metrics.MeanAbsoluteError,
+            MeanSquaredError = metrics.MeanSquaredError
+        };
     }
 
     private static void SaveModel(

@@ -5,12 +5,12 @@ using PriceWise.Infrastructure.ML.Models;
 namespace PriceWise.Infrastructure.ML.Services;
 
 /// <summary>
-/// Loads and caches trained models from disk per category.
+/// Loads and caches the active trained model from disk per category.
 /// </summary>
 public sealed class FileTrainedModelCatalog : ITrainedModelCatalog
 {
     private readonly IPricePredictionCategoryRegistry _categoryRegistry;
-    private readonly IPriceWisePathResolver _pathResolver;
+    private readonly IPriceModelVersionStore _versionStore;
     private readonly object _syncRoot = new();
     private readonly Dictionary<string, TrainedModel> _cache = new(StringComparer.OrdinalIgnoreCase);
 
@@ -18,13 +18,13 @@ public sealed class FileTrainedModelCatalog : ITrainedModelCatalog
     /// Initializes a new instance of the <see cref="FileTrainedModelCatalog"/> class.
     /// </summary>
     /// <param name="categoryRegistry">The category registry.</param>
-    /// <param name="pathResolver">The path resolver.</param>
+    /// <param name="versionStore">The version store.</param>
     public FileTrainedModelCatalog(
         IPricePredictionCategoryRegistry categoryRegistry,
-        IPriceWisePathResolver pathResolver)
+        IPriceModelVersionStore versionStore)
     {
         _categoryRegistry = categoryRegistry;
-        _pathResolver = pathResolver;
+        _versionStore = versionStore;
     }
 
     /// <inheritdoc />
@@ -59,13 +59,20 @@ public sealed class FileTrainedModelCatalog : ITrainedModelCatalog
 
     private TrainedModel Load(string categoryKey)
     {
-        var category = _categoryRegistry.GetRequired(categoryKey);
-        string modelPath = _pathResolver.GetModelPath(category);
+        IPricePredictionCategory category = _categoryRegistry.GetRequired(categoryKey);
+
+        if (!_versionStore.TryGetActive(categoryKey, out PriceTrainingMetadata? metadata) || metadata is null)
+        {
+            throw new FileNotFoundException(
+                $"No active model metadata was found for category '{categoryKey}'. Train the category first.");
+        }
+
+        string modelPath = metadata.ModelPath;
 
         if (!File.Exists(modelPath))
         {
             throw new FileNotFoundException(
-                $"No trained model file was found for category '{categoryKey}'. Expected path: '{modelPath}'.",
+                $"The active model file was not found for category '{categoryKey}'. Expected path: '{modelPath}'.",
                 modelPath);
         }
 
