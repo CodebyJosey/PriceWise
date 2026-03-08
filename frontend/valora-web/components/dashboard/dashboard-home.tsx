@@ -1,49 +1,58 @@
 "use client";
 
+import Link from "next/link";
+import { PlusCircle, Rows3, Sparkles } from "lucide-react";
+import { DashboardHeader } from "@/components/dashboard/dashboard-header";
 import { useCurrentUser } from "@/hooks/use-current-user";
 
 export function DashboardHome(): React.JSX.Element {
   const { user } = useCurrentUser();
 
   return (
-    <main className="mx-auto w-full max-w-7xl px-6 py-10 lg:px-8">
-      <section className="soft-panel rounded-[2.2rem] p-8">
-        <p className="text-sm font-bold uppercase tracking-[0.22em] text-emerald-900/50">
-          Dashboard
-        </p>
+    <div className="space-y-6">
+      <DashboardHeader
+        eyebrow="Dashboard"
+        title={`Welkom${user ? `, ${user.displayName}` : ""}`}
+        description="Hier start de seller flow van Valora. Vanuit hier beheer je je listings, maak je nieuwe listings aan en werk je straks met AI price predictions."
+      />
 
-        <h1 className="mt-3 text-4xl font-black tracking-tight text-emerald-950">
-          Welkom{user ? `, ${user.displayName}` : ""}
-        </h1>
-
-        <p className="mt-4 max-w-2xl text-sm leading-7 text-emerald-950/65">
-          Je auth-flow werkt nu. In de volgende stap koppelen we hier je eigen
-          listings, create listing, predict price en publish acties aan.
-        </p>
-
-        <div className="mt-8 grid gap-4 md:grid-cols-3">
-          <div className="rounded-[1.5rem] bg-white p-5 shadow-sm">
-            <p className="text-sm font-semibold text-emerald-900/55">Naam</p>
-            <p className="mt-2 text-lg font-black text-emerald-950">
-              {user?.displayName ?? "-"}
-            </p>
+      <section className="grid gap-4 md:grid-cols-3">
+        <Link
+          href="/dashboard/listings"
+          className="soft-panel rounded-[1.75rem] p-6 transition hover:-translate-y-0.5"
+        >
+          <div className="flex h-12 w-12 items-center justify-center rounded-[1.1rem] bg-emerald-100">
+            <Rows3 className="h-5 w-5 text-emerald-900" />
           </div>
+          <h2 className="mt-4 text-xl font-black text-emerald-950">Mijn listings</h2>
+          <p className="mt-3 text-sm leading-7 text-emerald-950/62">
+            Bekijk drafts en gepubliceerde listings en beheer hun status.
+          </p>
+        </Link>
 
-          <div className="rounded-[1.5rem] bg-white p-5 shadow-sm">
-            <p className="text-sm font-semibold text-emerald-900/55">E-mail</p>
-            <p className="mt-2 text-lg font-black text-emerald-950">
-              {user?.email ?? "-"}
-            </p>
+        <Link
+          href="/dashboard/listings/new"
+          className="soft-panel rounded-[1.75rem] p-6 transition hover:-translate-y-0.5"
+        >
+          <div className="flex h-12 w-12 items-center justify-center rounded-[1.1rem] bg-lime-100">
+            <PlusCircle className="h-5 w-5 text-lime-900" />
           </div>
+          <h2 className="mt-4 text-xl font-black text-emerald-950">Nieuwe listing</h2>
+          <p className="mt-3 text-sm leading-7 text-emerald-950/62">
+            Maak een nieuwe listing aan met categorie-specifieke features.
+          </p>
+        </Link>
 
-          <div className="rounded-[1.5rem] bg-white p-5 shadow-sm">
-            <p className="text-sm font-semibold text-emerald-900/55">Rollen</p>
-            <p className="mt-2 text-lg font-black text-emerald-950">
-              {user?.roles.join(", ") ?? "-"}
-            </p>
+        <div className="soft-panel rounded-[1.75rem] p-6">
+          <div className="flex h-12 w-12 items-center justify-center rounded-[1.1rem] bg-cyan-100">
+            <Sparkles className="h-5 w-5 text-cyan-900" />
           </div>
+          <h2 className="mt-4 text-xl font-black text-emerald-950">AI pricing</h2>
+          <p className="mt-3 text-sm leading-7 text-emerald-950/62">
+            In de volgende stap koppelen we prediction en publish slimmer in je flow.
+          </p>
         </div>
       </section>
-    </main>
+    </div>
   );
 }

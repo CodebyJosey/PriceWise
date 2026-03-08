@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ArrowUpRight, Sparkles } from "lucide-react";
 import { FeatureBadges } from "@/components/listings/feature-badges";
+import { ListingImage } from "@/components/listings/listing-image";
 import type { ListingResponse } from "@/types/listings";
 
 interface ListingCardProps {
@@ -31,7 +32,7 @@ export function ListingCard({
 }: ListingCardProps): React.JSX.Element {
   return (
     <article className="group overflow-hidden rounded-[2rem] border border-emerald-950/8 bg-white/90 shadow-[0_18px_60px_rgba(16,24,40,0.08)] transition hover:-translate-y-1 hover:shadow-[0_24px_80px_rgba(16,24,40,0.12)]">
-      <div className="h-44 bg-[radial-gradient(circle_at_top_left,_rgba(110,231,183,0.8),_transparent_35%),linear-gradient(135deg,_#f0fdf4_0%,_#dcfce7_40%,_#ecfeff_100%)]" />
+      <ListingImage listing={listing} />
 
       <div className="p-6">
         <div className="flex items-start justify-between gap-4">

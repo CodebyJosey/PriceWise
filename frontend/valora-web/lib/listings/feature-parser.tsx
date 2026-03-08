@@ -58,3 +58,26 @@ export function getTopFeatureBadges(
 ): ParsedFeature[] {
   return parseFeaturesJson(featuresJson).slice(0, maxCount);
 }
+
+export function parseFeatureObject(
+  featuresJson: string,
+): Record<string, string | number | boolean> {
+  if (!featuresJson || !featuresJson.trim()) {
+    return {};
+  }
+
+  try {
+    const parsed = JSON.parse(featuresJson) as Record<string, unknown>;
+
+    return Object.fromEntries(
+      Object.entries(parsed).filter(
+        ([, value]) =>
+          typeof value === "string" ||
+          typeof value === "number" ||
+          typeof value === "boolean",
+      ),
+    ) as Record<string, string | number | boolean>;
+  } catch {
+    return {};
+  }
+}

@@ -1,3 +1,16 @@
+export interface ListingImageResponse {
+  id: string;
+  imageUrl: string;
+  fileName?: string | null;
+  contentType?: string | null;
+  sizeBytes?: number | null;
+  width?: number | null;
+  height?: number | null;
+  sortOrder: number;
+  isPrimary: boolean;
+  createdAtUtc?: string | null;
+}
+
 export interface ListingResponse {
   id: string;
   ownerUserId: string;
@@ -12,6 +25,10 @@ export interface ListingResponse {
   featuresJson: string;
   createdAtUtc: string;
   updatedAtUtc: string;
+
+  // Image-ready, maar optioneel zolang backend dit nog niet terugstuurt.
+  primaryImageUrl?: string | null;
+  images?: ListingImageResponse[] | null;
 }
 
 export interface CreateListingRequest {
