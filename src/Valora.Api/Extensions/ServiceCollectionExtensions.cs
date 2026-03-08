@@ -3,12 +3,14 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using Valora.Application.Abstractions.Listings;
 using Valora.Application.Abstractions.PricePrediction;
 using Valora.Infrastructure.ML.Definitions;
 using Valora.Infrastructure.ML.Registry;
 using Valora.Infrastructure.ML.Services;
 using Valora.Infrastructure.Persistence;
 using Valora.Infrastructure.Persistence.Identity;
+using Valora.Infrastructure.Services.Listings;
 
 namespace Valora.Api.Extensions;
 
@@ -95,6 +97,8 @@ public static class ServiceCollectionExtensions
             });
 
         services.AddAuthorization();
+
+        services.AddScoped<IListingService, ListingService>();
 
         return services;
     }
