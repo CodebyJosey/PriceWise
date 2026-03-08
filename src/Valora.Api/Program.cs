@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Models;
 using Valora.Api.Extensions;
+using Valora.Api.Middleware;
 using Valora.Infrastructure.Persistence;
 using Valora.Infrastructure.Persistence.Seed;
 
@@ -53,10 +54,14 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
+app.UseMiddleware<ExceptionHandlingMiddleware>();
+
 app.UseHttpsRedirection();
 
 app.UseAuthentication();
 app.UseAuthorization();
+
+app.UseMiddleware<RequestLoggingMiddleware>();
 
 app.MapControllers();
 

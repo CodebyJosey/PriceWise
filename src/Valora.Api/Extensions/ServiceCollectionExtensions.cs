@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Valora.Application.Abstractions.Listings;
+using Valora.Application.Abstractions.Logging;
 using Valora.Application.Abstractions.PricePrediction;
 using Valora.Infrastructure.ML.Definitions;
 using Valora.Infrastructure.ML.Registry;
@@ -11,12 +12,12 @@ using Valora.Infrastructure.ML.Services;
 using Valora.Infrastructure.Persistence;
 using Valora.Infrastructure.Persistence.Identity;
 using Valora.Infrastructure.Services.Listings;
+using Valora.Infrastructure.Services.Logging;
 
 namespace Valora.Api.Extensions;
 
 /// <summary>
-/// Extension methods for registering Valora services.
-/// Keeps Program.cs clean and organizes DI by layer.
+/// Extension methods for registering infrastructure persistence services.
 /// </summary>
 public static class ServiceCollectionExtensions
 {
@@ -99,6 +100,7 @@ public static class ServiceCollectionExtensions
         services.AddAuthorization();
 
         services.AddScoped<IListingService, ListingService>();
+        services.AddScoped<IAuditLogService, AuditLogService>();
 
         return services;
     }
