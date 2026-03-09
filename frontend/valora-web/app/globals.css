@@ -6,7 +6,7 @@
     radial-gradient(circle at 85% 10%, rgba(187, 247, 208, 0.85), transparent 18%),
     radial-gradient(circle at 40% 100%, rgba(209, 250, 229, 0.8), transparent 28%),
     linear-gradient(180deg, #f7fff9 0%, #f0fdf4 45%, #ecfeff 100%);
-  --foreground: #052e06;
+  --foreground: #052e16;
 }
 
 * {

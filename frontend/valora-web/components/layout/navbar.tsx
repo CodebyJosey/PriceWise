@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { LayoutDashboard, LogOut } from "lucide-react";
+import { LayoutDashboard, LogOut, Shield } from "lucide-react";
 import { clearAccessToken } from "@/lib/auth/token-storage";
 import { useCurrentUser } from "@/hooks/use-current-user";
 
@@ -21,6 +21,8 @@ export function Navbar(): React.JSX.Element {
     router.push("/");
     router.refresh();
   }
+
+  const isAdmin = user?.roles.includes("Admin") ?? false;
 
   return (
     <header className="sticky top-0 z-50 border-b border-emerald-950/10 bg-white/70 backdrop-blur-xl">
@@ -66,6 +68,16 @@ export function Navbar(): React.JSX.Element {
                 <LayoutDashboard className="h-4 w-4" />
                 Dashboard
               </Link>
+
+              {isAdmin ? (
+                <Link
+                  href="/admin"
+                  className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-white px-4 py-2 text-sm font-semibold text-emerald-950 shadow-sm transition hover:bg-emerald-50"
+                >
+                  <Shield className="h-4 w-4" />
+                  Admin
+                </Link>
+              ) : null}
 
               <button
                 type="button"
